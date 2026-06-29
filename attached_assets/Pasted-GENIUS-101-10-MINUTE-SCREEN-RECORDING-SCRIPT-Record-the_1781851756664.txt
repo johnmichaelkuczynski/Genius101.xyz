@@ -1,0 +1,102 @@
+GENIUS 101 — 10-MINUTE SCREEN RECORDING SCRIPT
+Record the live app. Open and run every function start to finish. Let every generation
+stream to completion on screen. Let the audit/database-activity panel show on every
+generation so the viewer sees real corpus grounding, not invented text. No intro card,
+no music, no captions over video, no fades. Just the app being used.
+
+WHERE A FUNCTION TAKES TEXT INPUT, USE THE GIVEN INPUT VERBATIM SO REAL OUTPUT APPEARS.
+
+----------------------------------------------------------------
+0:00–0:40  SIDEBAR + MAIN CHAT (Figure Chat)
+- Scroll the full philosopher sidebar so all 50+ thinkers pass by (Adler...Freud...Galileo).
+- Type "Freud" in search to show search works. Click Freud.
+- In chat, type the input below and send. LET THE AUDIT PANEL SHOW the positions/quotes/
+  text_chunks queries firing, then let the streamed answer finish.
+  INPUT: "Did Libet's experiment prove we lack free will? The subject is conscious of his
+  intention only after it has long been in the making. He always feels as though he just
+  came up with the decision and freely chose to move his finger. But the readiness
+  potential was already underway. So the conscious event is an awareness of the decision,
+  not the decision itself."
+
+0:40–1:15  THINKING PANEL + DATABASE GROUNDING
+- Keep the answer from streaming. Open/point to the audit panel and the thinking panel so
+  the viewer sees actual quotes being pulled from the corpus during the response.
+- Scroll the finished answer so its grounded quotes are visible.
+
+1:15–2:15  PAPER WRITER
+- Open Paper Writer. Enter the topic below, set length to 1500, click Generate.
+- Show the audit panel gathering materials, then the paper streaming. Scroll it. Click
+  the download/copy control at the end.
+  INPUT: "A constructive response to the Libet Experiment. The experiment has been
+  replicated many times with the same results. The constructive move is to accept the data
+  and model it, not to insist it must be spurious. Standing intentions cannot be
+  constituents of consciousness. Consciousness approves or vetoes decisions already made."
+
+2:15–3:30  THE 6-STAGE WORKFLOW (the centerpiece — show ALL of it)
+- Launch the workflow. Show each stage produce its artifact and that each is DOWNLOADABLE:
+  STAGE 1 Gather Materials (positions, quotes, text_chunks listed)
+  STAGE 2 Outline
+  STAGE 3 Questions
+  STAGE 4 Blueprint
+  STAGE 5 Short Version
+  STAGE 6 Final
+- Mid-run, click COURSE-CORRECT, type a one-line correction, resume.
+- Then on a later stage click HALT to show the emergency stop works.
+- Open the Database Activity popup so live DB queries stream alongside the main output.
+
+3:30–4:30  MODEL BUILDER
+- Open Model Builder. Show both modes exist: toggle FORMAL (Domain/Interpretation/Axioms/
+  Theorems) and INFORMAL (conceptual reinterpretation). Toggle "Model Entire Text."
+- Paste the input below, click Generate, let the model stream into the right pane, download.
+  INPUT: "If a stone became conscious while falling it would think it fell of its own free
+  will. Find an interpretation on which the claim that conscious choices are awarenesses of
+  prior decisions comes out true. Map W onto an after-the-fact approval signal. Map the
+  readiness potential onto the operative cause."
+
+4:30–5:30  DIALOGUE CREATOR
+- Open Dialogue Creator. Set two thinkers (e.g., Freud and Libet), enter the topic, generate.
+- Let the dialogue stream, scroll it, download.
+  INPUT: "Are our conscious decisions really ours to make, or only ours to behold?"
+
+5:30–6:30  INTERVIEW CREATOR
+- Open Interview Creator. Open the thinker dropdown, scroll it, pick Bergson, generate.
+- Let the interview stream, scroll, download.
+  INPUT: "Press the difference between asking what the Libet experiment shows and asking
+  what it shows about free will."
+
+6:30–7:30  DEBATE CREATOR
+- Open Debate Creator. Stage Libet vs. Mele on "Is W the operative intention?", generate.
+- Let both sides stream, scroll, download.
+  INPUT: "Resolved: the readiness potential, not the conscious event W, is the operative
+  intention behind the action."
+
+7:30–8:15  QUOTE GENERATOR
+- Open Quote Generator. First show SITE AUTHORS: open the author dropdown, scroll, pick one,
+  enter a topic, Generate Quotes, let real quotes appear.
+- Then show UPLOAD: drag in a .txt/.pdf (the upload accepts .txt .md .doc .docx .pdf up to
+  5MB), parse it, show extracted quotes.
+
+8:15–8:50  COMPARE THINKERS (header button)
+- Click Compare Thinkers. Pick two or more philosophers and a topic. Generate the
+  side-by-side comparison modal. Scroll it.
+  INPUT TOPIC: "the unconscious origin of decisions"
+
+8:50–9:30  SETTINGS (persona settings — show each control change live)
+- Response Length: change 750 to 1500.
+- Number of Quotes: change 7 to 12.
+- AI Model dropdown: open it, show OpenAI / Anthropic / Grok / DeepSeek are selectable, pick one.
+- Intensity slider: drag Faithful -> Wild man and back; show the description text change.
+- Dialogue Mode toggle: flip it.
+
+9:30–10:00  NAV + INPUT EXTRAS + CLOSE
+- My Chats: open it, show saved conversation history.
+- Diagnostics: open it, show the panel.
+- Voice input: click the mic, show listening state, speak a question, show it transcribe.
+- Document upload in chat: show the paperclip attach a file.
+- Stop recording on the working app. No outro.
+
+NOTES
+- The whole point is showing REAL grounded output and the audit/workflow machinery, not a
+  pretty trailer. Keep panels visible. Don't speed past generations — let them finish.
+- Readable resolution. Cursor visible. If a section runs long, trim the chat scroll time,
+  never cut a function.

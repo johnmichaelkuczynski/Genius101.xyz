@@ -1,0 +1,285 @@
+Build a synthetic user agent ("R1") that beta-tests AskThem end-to-end. R1 must produce raw, reviewable evidence of every interaction — not pass/fail summaries.
+NON-NEGOTIABLE REQUIREMENTS (read first)
+These are the parts a previous synthetic-user build for a different app failed on. If any are missing, the deliverable is rejected.
+
+No green-checkmark theater. R1 does NOT produce a summary that says "Function 3: PASS." R1 produces raw evidence: the exact text R1 typed, the exact text the app returned, the exact network responses, the exact screenshots. The judge's critique is a paragraph of prose, not a boolean. "PASS/FAIL" exists only as a filter for failures.md — never as a substitute for the evidence itself.
+The HTML report must be reviewable by a human in under 30 minutes. Every interaction shows, in order: what R1 was trying to test, what R1 typed (the actual string), what the app returned (the actual response body), the screenshots, and the judge's prose critique. No collapsed sections. No "Click to expand details." Everything visible.
+The live view must show R1's actual inputs and the app's actual outputs as they happen — not "Step 4 of N in progress." See "Live view" below.
+Network traffic must be captured raw. Every request to /api/* and its response body goes into network.log as JSONL. Not summaries. Actual JSON.
+Three screenshots per interactive step (before R1 acts / after R1 types / after the app responds). For read-only / navigation-only steps, one screenshot is fine. The sanity check at the end must distinguish these two cases and NOT flag legitimate single-screenshot navigation steps as failures.
+If R1 cannot complete a step, the failure is logged with the actual error, the page HTML at the moment of failure, and a screenshot. R1 does NOT skip and mark green.
+Per-step API-call expectations are route-specific, not boolean. A step like "ask a question" must expect POST /api/chat specifically, not "any /api/* call." A step like "upload thinker text" must expect POST /api/admin/thinkers/:id/upload-text. The sanity check verifies the specific route fired. Boolean checks are forbidden — they allow steps to satisfy themselves with unrelated background requests.
+Critical button clicks are wrapped in Promise.all([page.waitForResponse(predicate), click]) so R1 doesn't silently advance when a click fails to fire its expected request.
+AskThem's most important invariant is anti-hallucination: every quote in a chat response must be verifiable against the database. R1's judge model must explicitly check this on every chat response. If a response contains a quoted passage that isn't present in the thinker's actual thinker_quotes rows (verifiable via the admin API), that's a CRITICAL INVARIANT VIOLATION, not just a judge concern.
+
+Architecture
+
+Browser automation: Playwright (Node, single-file tools/r1/run.mjs). Standalone Node project, not in any workspace.
+R1's brain: Anthropic API. Model: claude-opus-4-7. Key in ANTHROPIC_API_KEY.
+Judge: Separate Claude API call per interaction. Returns prose critique, not a verdict. Judge has database read access for the quote-verification invariant (described below).
+Live view: Local HTTP server on port 7777. Plain node:http, zero extra deps.
+Target app: AskThem running locally. Frontend port from vite.config.ts; API on the same origin (single Express server serves both). R1 must accept APP_URL as a config knob; default to http://localhost:5000 and document how to override.
+
+Authentication
+AskThem is single-user with hardcoded admin credentials per the blueprint: username jmkuczynski, password Sct1968813.. R1 logs in via the standard auth flow at startup:
+
+Navigate to login page (likely /login — confirm against the rendered app).
+Type credentials. Submit.
+Expected route: POST /api/auth/login. Verify 200 + session cookie set.
+Verify subsequent GET /api/auth/me returns the admin user.
+
+If login fails, R1 aborts and writes the failure to failures.md as a CRITICAL INVARIANT VIOLATION — there is no point continuing.
+Live view
+R1's harness exposes http://localhost:7777 while running. Open in a browser tab to see:
+Top panel — current interaction:
+
+Function number + step description (e.g., "Function 1 — Chat — Ask Plato about justice")
+R1's approach + reasoning
+Current URL
+Live-updating text box showing exact characters R1 is typing, character by character
+Most recent screenshot, refreshed every 2s
+
+Middle panel — app response:
+
+Full text of whatever the app returned (streaming responses shown as they stream — this matters because AskThem's chat uses streaming)
+Status / headers / body for each /api/* call that fired
+Judge's critique once it lands, including the quote-verification result
+
+Bottom panel — running event log:
+
+Reverse-chronological JSONL feed of completed interactions
+Each line: timestamp, function, step, one-sentence summary, link to the full record
+
+When the run ends, the live view shows "RUN COMPLETE" with a link to report.html. Kept open for 60s after exit.
+What R1 is testing — the AskThem functions
+Per the blueprint, AskThem has these core functions. Run each in order. Skip nothing unless SKIP_FUNCTIONS lists it.
+Function 1 — Chat with a single thinker
+This is the heart of the app. R1 must exercise it broadly.
+For each of at least 4 thinkers available in the database (R1 fetches the list via GET /api/thinkers):
+
+Open the chat page for that thinker.
+Send a substantive philosophical question relevant to that thinker (e.g., for Plato: "What is the role of the Forms in your epistemology?"; for Freud: "How do you distinguish repression from suppression?"). R1's brain composes a fitting question for each.
+Expected route: POST /api/chat (or whatever the streaming endpoint is — verify against the blueprint and code).
+Verify the response streams (Playwright sees the stream via page.on('response') for SSE or via DOM mutation observation).
+Capture the final assembled response text.
+Capture any inline citations / quoted passages in the response.
+
+For each chat response, the judge must:
+
+Critique whether the response is in-voice and substantive.
+Run the quote-verification invariant (described below).
+Flag whether the response speaks AS the thinker (correct) or ABOUT the thinker (incorrect — AskThem's whole point is first-person voice per the blueprint).
+
+Also test:
+
+A question outside the thinker's expertise / time period, to see if the response stays in-character without inventing.
+A deliberately leading question that invites the thinker to contradict their known positions, to see if the response holds the line.
+A very short question ("why?").
+A very long question (~500 words of context).
+
+Function 2 — Multi-thinker dialogue / comparison (if present in the app)
+If AskThem has a feature to query multiple thinkers in one session or to generate a dialogue between them, exercise it:
+
+Pick 2 thinkers, ask a question that should produce contrasting answers.
+Expected route: whatever the blueprint specifies (e.g., POST /api/dialogue or similar).
+Verify each thinker's voice stays distinct.
+Run quote verification on both responses.
+
+If this function isn't present, skip and note in the report.
+Function 3 — Browse / search thinkers
+
+Navigate to the thinker list page.
+Expected route: GET /api/thinkers.
+Verify the rendered list count matches the API response count.
+If there's search/filter, type a query and verify the filtered results.
+
+Function 4 — Thinker detail / profile page
+For one thinker:
+
+Open the detail page.
+Expected route: GET /api/thinkers/:id (or :slug).
+Verify rendered metadata matches the response (name, description, era, etc.).
+If positions or representative quotes are surfaced on the profile, verify they match GET /api/thinkers/:id/positions and GET /api/thinkers/:id/quotes.
+
+Function 5 — Admin: thinker creation
+
+Navigate to admin section.
+Create a new test thinker named "R1 Test Thinker".
+Expected route: POST /api/admin/thinkers.
+Verify it appears in GET /api/thinkers.
+
+Function 6 — Admin: text upload / ingestion
+For the test thinker just created:
+
+Upload a small sample text (R1 has a fixture file fixtures/sample-thinker-text.txt).
+Expected route: POST /api/admin/thinkers/:id/upload-text (or whatever the blueprint specifies).
+Verify the response indicates successful chunking / embedding.
+Verify GET /api/admin/thinkers/:id/chunks shows new rows.
+
+Function 7 — Admin: positions / quotes extraction
+If the app has explicit extraction endpoints:
+
+Trigger extraction for the test thinker.
+Expected route: per blueprint.
+Verify new rows in thinker_positions and thinker_quotes via admin GETs.
+
+Function 8 — Chat against the newly-created test thinker
+This is the integration test that ties Functions 5–7 together:
+
+Open chat for "R1 Test Thinker".
+Ask a question whose answer is contained in the sample text.
+Verify the response cites a quote from the uploaded text.
+Run quote verification: the cited quote must appear verbatim (or as a near-match) in the uploaded sample.
+
+Function 9 — Admin: thinker deletion / cleanup
+
+Delete "R1 Test Thinker".
+Expected route: DELETE /api/admin/thinkers/:id.
+Verify it no longer appears in GET /api/thinkers.
+
+Function 10 — Anti-hallucination spot checks
+Independent of the above flows: pick 3 chat responses from earlier in the run that contained direct quotes. For each:
+
+Extract the quoted text.
+Query the admin API: GET /api/admin/thinkers/:id/quotes?search=<first 10 words of quote> (or whatever the search endpoint is — confirm against the blueprint).
+If no matching row exists, that's a CRITICAL INVARIANT VIOLATION.
+
+The quote-verification invariant (detail)
+This is AskThem's defining feature and the thing R1 must enforce hardest.
+For every chat response, the judge does:
+
+Parse the response text for quoted passages (anything in quotation marks of meaningful length, say ≥ 15 chars).
+For each quoted passage:
+
+Query GET /api/admin/thinkers/:thinkerId/quotes?search=<first words> to look for a match.
+Also query GET /api/admin/thinkers/:thinkerId/chunks?search=<first words> because the response might cite source text not yet extracted as a discrete quote.
+If neither returns a near-match (judge uses fuzzy comparison: lowercase, strip punctuation, allow ±2 word differences), the quote is unverified.
+
+
+Record each unverified quote in the interaction's invariant_violations field with: the quote text, the thinker id, the queries the judge ran, and the empty results.
+
+Unverified quotes = CRITICAL INVARIANT VIOLATIONS in failures.md. This is non-negotiable.
+R1's behavior
+R1 is a single generic synthetic user with admin privileges. For each interaction, R1 picks one of these approaches and logs the choice with reasoning:
+
+Substantive question in the thinker's wheelhouse
+Leading question inviting contradiction of known positions
+Out-of-period / out-of-expertise question
+Minimum viable input (one word)
+Very long contextualized question (~500 words)
+Probe a known constraint (ask the thinker to step out of voice — they shouldn't)
+Trigger a feature path (ask for a specific quote to test retrieval)
+Plausibly-wrong / malformed input
+
+R1 picks based on what will best probe that specific feature.
+Typing constraint: No clipboard paste. Use Playwright .type() with TYPE_DELAY_MS=15 so the live view can show keystrokes building up.
+Per-interaction flow
+For each step:
+
+Navigate / open relevant UI.
+Capture page state.
+Send to R1 brain: "Here is the step and current state. Pick an approach. Briefly explain why. Then produce the input."
+Take "before" screenshot.
+Type input.
+Take "typed" screenshot (await element value matches typed input).
+Wrap critical button clicks in Promise.all([page.waitForResponse(predicate), click]) with the predicate matching the expected route.
+Wait for full response (handle streaming — accumulate stream chunks; final response is the assembled stream).
+Take "after" screenshot.
+Capture response body, console errors, SSE events.
+For chat interactions: run the quote-verification invariant via the judge.
+Send full interaction to judge: "Critique functionally and qualitatively. Was the response in-voice? Did it stay first-person? Did all quotes verify against the database? Anything broken, off, slow, or off-character?"
+Append to transcript; stream summary to console; update live-view state.
+
+Artifacts (written to tools/r1/runs/<ISO-timestamp>/)
+transcript.jsonl
+One JSON object per interaction:
+json{
+  "timestamp": "...",
+  "function_number": 1,
+  "function_name": "Chat with single thinker",
+  "step_description": "Ask Plato about the Forms",
+  "url": "http://localhost:5000/chat/plato",
+  "is_interactive": true,
+  "expected_routes": ["POST /api/chat"],
+  "r1_approach": "substantive in-wheelhouse",
+  "r1_reasoning": "Testing baseline retrieval + in-voice composition on a core Platonic topic.",
+  "r1_input": "<exact verbatim>",
+  "app_response": {
+    "page_text_after": "<full streamed text>",
+    "errors_in_console": [],
+    "network_calls": [...],
+    "sse_events_observed": [...]
+  },
+  "screenshots": ["screenshots/0007-before.png","screenshots/0007-typed.png","screenshots/0007-after.png"],
+  "judge_critique": "<2-5 sentence prose>",
+  "judge_concerns": [...],
+  "quote_verification": {
+    "quotes_found_in_response": [...],
+    "quotes_verified": [...],
+    "quotes_unverified": [...]
+  },
+  "invariant_violations": [...]
+}
+For is_interactive: false, screenshots has one entry, r1_input is empty.
+report.html
+Self-contained HTML. One section per interaction, grouped by function. Sticky TOC. Every section shows: step + approach + reasoning + R1's input + page-text-after + network calls table + console errors + all screenshots inline + judge critique + concerns + quote-verification block (showing each quote and whether it verified). No collapses.
+failures.md
+Opens with CRITICAL INVARIANT VIOLATIONS:
+
+Any unverified quote in a chat response (quote text + thinker + queries judge ran)
+Any 5xx response
+Response that speaks ABOUT the thinker instead of AS the thinker
+Login failure
+Any uncaught exception in R1's harness
+
+Below: judge concerns linking to report anchors with screenshots inline.
+network.log
+JSONL of every /api/* request + response body. Bodies truncated at 50KB with response_truncated: true flag. Streaming responses captured as assembled-final-body plus list of chunk timestamps.
+console.log
+Full stdout.
+screenshots/
+Numbered PNGs.
+run-summary.txt
+INTERACTIONS: N
+JUDGE CONCERNS RAISED: M
+CRITICAL INVARIANT VIOLATIONS: K
+UNVERIFIED QUOTES: Q
+HARNESS SANITY FAILURES: J
+Anti-theater sanity checks (run before exit)
+For each interaction:
+
+Every route in expected_routes appears in network_calls. Route-specific, not boolean.
+r1_input ≥ 10 chars for interactive steps.
+Interactive steps: 3 screenshots, not byte-identical. Navigation-only: 1 screenshot.
+judge_critique ≥ 30 words.
+For chat interactions: quote_verification field is present and the judge ran the verification queries (not just an empty stub).
+
+If any fail, run-summary.txt adds HARNESS SANITY FAILURES: X and exit code is 3.
+Configuration
+jsconst APP_URL = process.env.APP_URL || 'http://localhost:5000';
+const OUTPUT_DIR = `./runs/${new Date().toISOString().replace(/[:.]/g,'-')}`;
+const HEADLESS = process.env.HEADLESS === 'true' || false;
+const TYPE_DELAY_MS = parseInt(process.env.TYPE_DELAY_MS || '15', 10);
+const LIVE_VIEW_PORT = parseInt(process.env.LIVE_VIEW_PORT || '7777', 10);
+const SKIP_FUNCTIONS = (process.env.SKIP_FUNCTIONS || '').split(',').filter(Boolean);
+const MAX_THINKERS_TO_CHAT = parseInt(process.env.MAX_THINKERS_TO_CHAT || '4', 10);
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-4-7';
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'jmkuczynski';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Sct1968813.';
+Include fixtures/sample-thinker-text.txt (~500 words of plausible thinker content) for the upload test.
+Deliverable
+tools/r1/run.mjs + tools/r1/package.json + tools/r1/README.md + tools/r1/fixtures/sample-thinker-text.txt. Standalone Node project, not in any workspace.
+npm start runs full plan. Smoke test: MAX_THINKERS_TO_CHAT=2 SKIP_FUNCTIONS=7 npm start.
+Startup banner:
+R1 is running.
+Live view:    http://localhost:7777
+Output dir:   ./runs/<timestamp>/
+Watch the live view; do not trust summary output alone.
+Finish banner:
+R1 finished.
+Open the report:     ./runs/<...>/report.html
+Open the failures:   ./runs/<...>/failures.md
+Raw transcript:      ./runs/<...>/transcript.jsonl
+Raw network log:     ./runs/<...>/network.log
+Exit codes: 0 clean, 1 judge concerns raised, 2 critical invariant violations, 3 harness sanity failed.
+UI selectors must be identified by inspecting the actual rendered AskThem app — do not guess. The blueprint describes endpoints and feature areas but does not specify testids. If testids exist, prefer them; otherwise use semantic selectors (role, name, placeholder) before resorting to CSS class names.
